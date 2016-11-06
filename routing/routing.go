@@ -2,6 +2,7 @@ package routing
 
 import (
 	"reflect"
+	"strings"
 )
 
 type Router interface {
@@ -12,3 +13,58 @@ type Router interface {
 	Send(e EventContainer)
 	SendAndWait(e EventContainer)
 }
+
+var eventerType reflect.Type = reflect.TypeOf((*Eventer)(nil)).Elem()
+
+func extractHandlers(agg interface{}) map[reflect.Type]reflect.Value {
+	handlers := make(map[reflect.Type]reflect.Value)
+	t, v := reflect.TypeOf(agg), reflect.ValueOf(agg)
+
+	for i := 0; i < t.NumMethod(); i++ {
+		methodType := t.Method(i)
+		methodVal := v.MethodByName(methodType.Name)
+		if followsNamingConvention(methodType) && doesConsumeEventer(methodVal.Type()) {
+			handlers[methodVal.Type().In(0)] = methodVal
+		}
+	}
+
+	return handlers
+}
+
+func eventRouter(r Router) {
+	for {
+		select {
+		case eventContainer := <-r.EventConsumer():
+			m, ok := r.Handlers()[reflect.TypeOf(eventContainer.Event())]
+			if (ok) {
+				inputs := make([]reflect.Value, m.Type().NumIn())
+				inputs[0] = reflect.ValueOf(eventContainer.Event())
+				for i := 1; i < m.Type().NumIn(); i++ {
+					inputs[i] = extractFromEventContainer(eventContainer, m.Type().In(i))
+				}
+				m.Call(inputs)
+			}
+		}
+
+	}
+}
+
+func extractFromEventContainer(eventContainer EventContainer, fieldType reflect.Type) reflect.Value {
+	s := reflect.ValueOf(eventContainer)
+	for i := 0; i < s.NumField(); i++ {
+		f := s.Field(i)
+		if (f.Type() == fieldType) {
+			return f
+		}
+	}
+	return reflect.Zero(fieldType)
+}
+
+func followsNamingConvention(m reflect.Method) bool {
+	return strings.HasSuffix(m.Name, "Handler")
+}
+
+func doesConsumeEventer(m reflect.Type) bool {
+	return (m.NumIn() > 0) && (m.In(0).Implements(eventerType))
+}
+
