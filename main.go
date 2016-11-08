@@ -4,6 +4,7 @@ import (
 	"github.com/shawnritchie/gokju/routing"
 	"fmt"
 	"time"
+	"github.com/shawnritchie/gokju/structs"
 )
 
 type DummyEvent1 struct {
@@ -28,12 +29,15 @@ func (e DummyEvent2)EventID() string {
 
 type DummyEventContainer struct {
 	event     routing.Eventer
-	SeqNo     uint64
-	Timestamp time.Time
+	metaData  structs.MetaData
 }
 
 func (c DummyEventContainer)Event() routing.Eventer{
 	return c.event
+}
+
+func (c DummyEventContainer)MetaData() structs.MetaData {
+	return c.metaData
 }
 
 type Aggregate struct {
@@ -66,16 +70,18 @@ func main() {
 	aggregate := Aggregate{v1: "", v2: 0}
 	aggregate.BlockingRouter = routing.NewBlockingRouter(&aggregate)
 
+	m := structs.MetaData{}
+	m.Add(uint64(1))
+	m.Add(time.Now())
+
 	aggregate.SendAndWait(DummyEventContainer{
 		event: DummyEvent1{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
+		metaData: m,
 	})
 
 	aggregate.SendAndWait(DummyEventContainer{
 		event: DummyEvent2{ v1:"test", v2:15, close:close },
-		SeqNo: uint64(2),
-		Timestamp: time.Now(),
+		metaData: m,
 	})
 
 	<- close

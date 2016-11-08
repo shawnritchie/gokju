@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 	"reflect"
+	"github.com/shawnritchie/gokju/structs"
 )
 
 type DummyEvent1 struct {
@@ -45,12 +46,26 @@ type DummyAggregate struct {
 
 type DummyEventContainer struct {
 	event     Eventer
-	SeqNo     uint64
-	Timestamp time.Time
+	metadata structs.MetaData
 }
 
-func (c DummyEventContainer)Event() Eventer{
+func NewDummyEventContainer(e Eventer) DummyEventContainer {
+	m := structs.MetaData{}
+	m.Add(uint64(1))
+	m.Add(time.Now())
+
+	return DummyEventContainer{
+		event:e,
+		metadata: m,
+	}
+}
+
+func (c DummyEventContainer)Event() Eventer {
 	return c.event
+}
+
+func (c DummyEventContainer)MetaData() structs.MetaData {
+	return c.metadata
 }
 
 func (a *DummyAggregate)Router() Router {
@@ -135,36 +150,6 @@ func TestRouting_ShowThatPointerToStructIsImplementingAggregate(t *testing.T) {
 	}
 }
 
-func TestRouting_ExtractFromEventContainer_ExtractExistingValue(t *testing.T) {
-	t.Log("Try to extract the time from a DummyEventContainer")
-	c := DummyEventContainer{
-		event: DummyEvent1{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
-	}
-	tType := reflect.TypeOf(time.Now())
-	v := extractFromEventContainer(c, tType)
-
-	if (v == reflect.Zero(tType)) {
-		t.Errorf("Extracting time from DummyEventContainer has failed")
-	}
-}
-
-func TestRouting_ExtractFromEventContainer_ExtractNonExistingValue(t *testing.T) {
-	t.Log("Try to extract a string from a DummyEventContainer which doesn't exist")
-	c := DummyEventContainer{
-		event: DummyEvent1{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
-	}
-	tType := reflect.TypeOf(string("test"))
-	v := extractFromEventContainer(c, tType)
-
-	if (v.String() != reflect.Zero(tType).String()) {
-		t.Errorf("Extracting a boolean from DummyEventContainer has yeileded something %v\n", v)
-	}
-}
-
 func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
 	aggregate := DummyAggregate{v1: "", v2: 0, close: make(chan int)}
@@ -176,14 +161,11 @@ func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 	b.handlers = extractHandlers(b.aggregate)
 	go eventRouter(b)
 
-	b.events <- DummyEventContainer{
-		event: DummyEvent1{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
-	}
+	var check int = 50
+	b.events <- NewDummyEventContainer(DummyEvent1{ v1:"test", v2:check })
 
 	result := <- aggregate.close
-	if (result != 50) {
+	if (result != check) {
 		t.Errorf("The incorrect secret code has been passed down the event handler")
 	}
 }
@@ -199,9 +181,5 @@ func TestRouting_EventRouter_SendingUnknownEventDoesNotBreakStuff(t *testing.T) 
 	b.handlers = extractHandlers(b.aggregate)
 	go eventRouter(b)
 
-	b.events <- DummyEventContainer{
-		event: DummyEvent3{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
-	}
+	b.events <- NewDummyEventContainer(DummyEvent3{ v1:"test", v2:15 })
 }

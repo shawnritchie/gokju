@@ -4,6 +4,8 @@ import (
 	"time"
 	"fmt"
 	"testing"
+	"github.com/shawnritchie/gokju/structs"
+	"reflect"
 )
 
 type BenchmarkEvent struct {
@@ -16,12 +18,15 @@ func (e BenchmarkEvent)EventID() string {
 
 type BenchmarkEventContainer struct {
 	event     Eventer
-	SeqNo     uint64
-	Timestamp time.Time
+	metadata structs.MetaData
 }
 
-func (c BenchmarkEventContainer)Event() Eventer{
+func (c BenchmarkEventContainer)Event() Eventer {
 	return c.event
+}
+
+func (c BenchmarkEventContainer)MetaData() structs.MetaData {
+	return c.metadata
 }
 
 type BenchmarkAggregate struct {
@@ -45,8 +50,9 @@ func (a *BenchmarkAggregate)HardCodedRouter() {
 		case event := <- a.events:
 			switch t := event.Event().(type) {
 			case BenchmarkEvent:
-				c := event.(BenchmarkEventContainer)
-				a.BenchmarkEventHandler(event.Event().(BenchmarkEvent), c.SeqNo, c.Timestamp)
+				a.BenchmarkEventHandler(event.Event().(BenchmarkEvent),
+					event.MetaData().Get(reflect.TypeOf(uint64(0))).(uint64),
+					event.MetaData().Get(reflect.TypeOf(time.Time{})).(time.Time))
 			default:
 				fmt.Printf("unexpected type %T\n", t)
 			}
@@ -63,11 +69,14 @@ func BenchmarkHardCodedRouter(b *testing.B) {
 	}
 	go aggregate.HardCodedRouter()
 
+	m := structs.MetaData{}
+	m.Add(uint64(1))
+	m.Add(time.Now())
+
 	for n := 0; n < b.N; n++ {
 		aggregate.events <- BenchmarkEventContainer{
 			event:BenchmarkEvent{amount:n},
-			SeqNo:uint64(n),
-			Timestamp:time.Now(),
+			metadata: m,
 		}
 	}
 }
@@ -76,11 +85,14 @@ func BenchmarkBlockingRouter(b *testing.B) {
 	aggregate := BenchmarkAggregate{total: 0}
 	aggregate.BlockingRouter = NewBlockingRouter(&aggregate)
 
+	m := structs.MetaData{}
+	m.Add(uint64(1))
+	m.Add(time.Now())
+
 	for n := 0; n < b.N; n++ {
 		aggregate.SendAndWait(BenchmarkEventContainer{
 			event:BenchmarkEvent{amount:n},
-			SeqNo:uint64(n),
-			Timestamp:time.Now(),
+			metadata: m,
 		})
 	}
 }

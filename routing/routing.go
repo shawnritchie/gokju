@@ -40,24 +40,13 @@ func eventRouter(r Router) {
 				inputs := make([]reflect.Value, m.Type().NumIn())
 				inputs[0] = reflect.ValueOf(eventContainer.Event())
 				for i := 1; i < m.Type().NumIn(); i++ {
-					inputs[i] = extractFromEventContainer(eventContainer, m.Type().In(i))
+					inputs[i] = reflect.ValueOf(eventContainer.MetaData().Get(m.Type().In(i)))
 				}
 				m.Call(inputs)
 			}
 		}
 
 	}
-}
-
-func extractFromEventContainer(eventContainer EventContainer, fieldType reflect.Type) reflect.Value {
-	s := reflect.ValueOf(eventContainer)
-	for i := 0; i < s.NumField(); i++ {
-		f := s.Field(i)
-		if (f.Type() == fieldType) {
-			return f
-		}
-	}
-	return reflect.Zero(fieldType)
 }
 
 func followsNamingConvention(m reflect.Method) bool {
