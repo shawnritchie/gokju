@@ -36,6 +36,26 @@ func (e DummyEvent3)EventID() string {
 	return "this.is.the.unique.event.identifier.DummyEvent1"
 }
 
+type DummyEvent4 struct {
+	v1 string
+	v2 int
+	close chan struct{}
+}
+
+func (e DummyEvent4)EventID() string {
+	return "this.is.the.unique.event.identifier.DummyEvent4"
+}
+
+type DummyEvent5 struct {
+	v1 string
+	v2 int
+	close chan struct{}
+}
+
+func (e DummyEvent5)EventID() string {
+	return "this.is.the.unique.event.identifier.DummyEvent5"
+}
+
 type DummyAggregate struct {
 	*BlockingRouter
 	v1 string
@@ -45,25 +65,43 @@ type DummyAggregate struct {
 
 type DummyEventContainer struct {
 	event     Eventer
-	SeqNo     uint64
-	Timestamp time.Time
+	seq     uint64
+	timestamp time.Time
 }
 
 func (c DummyEventContainer)Event() Eventer{
 	return c.event
 }
 
+func (c DummyEventContainer)Seq() uint64 {
+	return c.seq
+}
+
+func (c DummyEventContainer)Timestamp() time.Time{
+	return c.timestamp
+}
+
 func (a *DummyAggregate)Router() Router {
 	return a.BlockingRouter
 }
 
-func (a *DummyAggregate)DummyEvent1Handler(event DummyEvent1, seqNo uint64, timestamp time.Time) {
+func (a *DummyAggregate)DummyEvent1Handler(event DummyEvent1, timestamp time.Time, seqNo uint64) {
 	a.v1 = event.v1
 	a.v2 = event.v2
 	a.close <- 50
 }
 
-func (a *DummyAggregate)DummyEvent2Handler(event DummyEvent2, seqNo uint64, timestamp time.Time) {
+func (a *DummyAggregate)DummyEvent2Handler(event DummyEvent2, timestamp time.Time, seqNo uint64) {
+	a.v1 = event.v1
+	a.v2 = event.v2
+}
+
+func (a *DummyAggregate)DummyEvent4Handler(event DummyEvent4, timestamp time.Time) {
+	a.v1 = event.v1
+	a.v2 = event.v2
+}
+
+func (a *DummyAggregate)DummyEvent5Handler(event DummyEvent5) {
 	a.v1 = event.v1
 	a.v2 = event.v2
 }
@@ -97,32 +135,12 @@ func TestRouting_FollowsNamingConvention_NoMatch(t *testing.T) {
 	}
 }
 
-func TestRouting_DoesConsumeEventer_Match(t *testing.T) {
-	t.Log("Test that the first parameter to a method is actually implementing Eventer interface")
-	aggregate := DummyAggregate{v1: "", v2: 0}
-	m := reflect.ValueOf(&aggregate).MethodByName("DummyEvent1Handler").Type()
-
-	if (!doesConsumeEventer(m)) {
-		t.Errorf("privateEventHandler first paramter is implementing Eventer")
-	}
-}
-
-func TestRouting_DoesConsumeEventer_NoMatch(t *testing.T) {
-	t.Log("Test that the first parameter to a method is not actually implementing Eventer interface")
-	aggregate := DummyAggregate{v1: "", v2: 0}
-	m := reflect.ValueOf(&aggregate).MethodByName("ThisIsNotAHandler").Type()
-
-	if (doesConsumeEventer(m)) {
-		t.Errorf("ThisIsNotAHandler first paramter is not implementing Eventer")
-	}
-}
-
 func TestRouting_ExtractHandlers(t *testing.T) {
 	t.Log("Creating an Aggregate with 2 handlers")
 	aggregate := DummyAggregate{v1: "", v2: 0}
 	handlers := extractHandlers(&aggregate)
-	if (handlers == nil) || (len(handlers) != 2) {
-		t.Errorf("Expected 2 handlers, but instead %d were created.", len(handlers))
+	if (handlers == nil) || (len(handlers) != 4) {
+		t.Errorf("Expected 4 handlers, but instead %d were created.", len(handlers))
 	}
 }
 
@@ -132,36 +150,6 @@ func TestRouting_ShowThatPointerToStructIsImplementingAggregate(t *testing.T) {
 	handlers := extractHandlers(aggregate)
 	if (handlers == nil) || (len(handlers) != 0) {
 		t.Errorf("Expected 0 handlers, but instead %d were created.", len(handlers))
-	}
-}
-
-func TestRouting_ExtractFromEventContainer_ExtractExistingValue(t *testing.T) {
-	t.Log("Try to extract the time from a DummyEventContainer")
-	c := DummyEventContainer{
-		event: DummyEvent1{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
-	}
-	tType := reflect.TypeOf(time.Now())
-	v := extractFromEventContainer(c, tType)
-
-	if (v == reflect.Zero(tType)) {
-		t.Errorf("Extracting time from DummyEventContainer has failed")
-	}
-}
-
-func TestRouting_ExtractFromEventContainer_ExtractNonExistingValue(t *testing.T) {
-	t.Log("Try to extract a string from a DummyEventContainer which doesn't exist")
-	c := DummyEventContainer{
-		event: DummyEvent1{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
-	}
-	tType := reflect.TypeOf(string("test"))
-	v := extractFromEventContainer(c, tType)
-
-	if (v.String() != reflect.Zero(tType).String()) {
-		t.Errorf("Extracting a boolean from DummyEventContainer has yeileded something %v\n", v)
 	}
 }
 
@@ -178,13 +166,44 @@ func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 
 	b.events <- DummyEventContainer{
 		event: DummyEvent1{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
+		seq: uint64(1),
+		timestamp: time.Now(),
 	}
 
 	result := <- aggregate.close
+
 	if (result != 50) {
 		t.Errorf("The incorrect secret code has been passed down the event handler")
+	}
+}
+
+func TestRouting_EventRouterForDifferentFunctionDefintions(t *testing.T) {
+	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
+	aggregate := DummyAggregate{v1: "", v2: 0, close: make(chan int)}
+	b := &BlockingRouter{
+		aggregate: &aggregate,
+		events: make(chan EventContainer),
+		lifecycle: make(chan interface{}),
+	}
+	b.handlers = extractHandlers(b.aggregate)
+	go eventRouter(b)
+
+	b.events <- DummyEventContainer{
+		event: DummyEvent2{ v1:"test", v2:15 },
+		seq: uint64(1),
+		timestamp: time.Now(),
+	}
+
+	b.events <- DummyEventContainer{
+		event: DummyEvent4{ v1:"test", v2:15 },
+		seq: uint64(2),
+		timestamp: time.Now(),
+	}
+
+	b.events <- DummyEventContainer{
+		event: DummyEvent5{ v1:"test", v2:15 },
+		seq: uint64(3),
+		timestamp: time.Now(),
 	}
 }
 
@@ -201,7 +220,17 @@ func TestRouting_EventRouter_SendingUnknownEventDoesNotBreakStuff(t *testing.T) 
 
 	b.events <- DummyEventContainer{
 		event: DummyEvent3{ v1:"test", v2:15 },
-		SeqNo: uint64(1),
-		Timestamp: time.Now(),
+		seq: uint64(1),
+		timestamp: time.Now(),
+	}
+}
+
+
+func TestReflection_IsFuncTypeTheSameBasedOnDefinition(t *testing.T) {
+	aggregate := DummyAggregate{v1: "", v2: 0, close: make(chan int)}
+	a := reflect.TypeOf(aggregate.DummyEvent1Handler)
+	b := reflect.TypeOf(func(event DummyEvent1, timestamp time.Time, seqNo uint64){})
+	if (a != b) {
+		t.Errorf("Function definition are not the same :(")
 	}
 }

@@ -6,7 +6,7 @@ import (
 
 type BlockingRouter struct {
 	aggregate Aggregate
-	handlers map[reflect.Type]reflect.Value
+	handlers map[reflect.Type]func(c EventContainer)
 	events chan EventContainer
 	lifecycle <-chan interface{}
 }
@@ -26,7 +26,7 @@ func (b *BlockingRouter)Aggregate() Aggregate {
 	return b.aggregate
 }
 
-func (b *BlockingRouter)Handlers() map[reflect.Type]reflect.Value{
+func (b *BlockingRouter)Handlers() map[reflect.Type]func(c EventContainer) {
 	return b.handlers
 }
 

@@ -16,12 +16,20 @@ func (e BenchmarkEvent)EventID() string {
 
 type BenchmarkEventContainer struct {
 	event     Eventer
-	SeqNo     uint64
-	Timestamp time.Time
+	seq     uint64
+	timestamp time.Time
 }
 
 func (c BenchmarkEventContainer)Event() Eventer{
 	return c.event
+}
+
+func (c BenchmarkEventContainer)Seq() uint64 {
+	return c.seq
+}
+
+func (c BenchmarkEventContainer)Timestamp() time.Time{
+	return c.timestamp
 }
 
 type BenchmarkAggregate struct {
@@ -46,7 +54,7 @@ func (a *BenchmarkAggregate)HardCodedRouter() {
 			switch t := event.Event().(type) {
 			case BenchmarkEvent:
 				c := event.(BenchmarkEventContainer)
-				a.BenchmarkEventHandler(event.Event().(BenchmarkEvent), c.SeqNo, c.Timestamp)
+				a.BenchmarkEventHandler(event.Event().(BenchmarkEvent), c.seq, c.timestamp)
 			default:
 				fmt.Printf("unexpected type %T\n", t)
 			}
@@ -66,8 +74,8 @@ func BenchmarkHardCodedRouter(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		aggregate.events <- BenchmarkEventContainer{
 			event:BenchmarkEvent{amount:n},
-			SeqNo:uint64(n),
-			Timestamp:time.Now(),
+			seq:uint64(n),
+			timestamp:time.Now(),
 		}
 	}
 }
@@ -79,8 +87,8 @@ func BenchmarkBlockingRouter(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		aggregate.SendAndWait(BenchmarkEventContainer{
 			event:BenchmarkEvent{amount:n},
-			SeqNo:uint64(n),
-			Timestamp:time.Now(),
+			seq:uint64(n),
+			timestamp:time.Now(),
 		})
 	}
 }
