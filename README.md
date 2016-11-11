@@ -19,10 +19,6 @@ Reflections Lessons Learnt
 - Interfaces are represented by a tuple (reflect.Type, reflect.Value)
 - Interfaces can be implemented either by a pointer to a struct or by a struct, either one or the other is implementing the interface not both
 
-Want to contribute;
--------------------
-- Standard git flow approach, issues -> branch -> PR -> Review -> Merge
-
 TODO::
 ------
 - [ ] Implement logging
