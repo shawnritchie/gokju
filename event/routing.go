@@ -1,4 +1,4 @@
-package routing
+package event
 
 import (
 	"reflect"
@@ -6,28 +6,35 @@ import (
 	"time"
 )
 
-type Router interface {
-	Aggregate() Aggregate
-	Handlers() map[reflect.Type]func(c EventContainer)
-	EventConsumer() <- chan EventContainer
-	EventEmitter() chan <- EventContainer
-	Send(e EventContainer)
-	SendAndWait(e EventContainer)
+type Router struct {
+	Consumer
+	listener interface{}
+	handlers map[reflect.Type]func(c EventContainer)
+}
+
+func NewRouter(c Consumer, listener interface{}) Router {
+	b := Router{
+		listener: listener,
+		Consumer: c,
+	}
+	b.handlers = extractHandlers(b.listener)
+	go eventRouter(b)
+	return b
 }
 
 var eventHandlerTemplates map[reflect.Type]func(v reflect.Value, c EventContainer) = map[reflect.Type]func(v reflect.Value, c EventContainer){
-	reflect.TypeOf(func(a Aggregate, event Eventer){}): func(v reflect.Value, c EventContainer) {
+	reflect.TypeOf(func(a interface{}, event Eventer){}): func(v reflect.Value, c EventContainer) {
 		v.Call([]reflect.Value {
 			reflect.ValueOf(c.Event()),
 		})
 	},
-	reflect.TypeOf(func(a Aggregate, event Eventer, timestamp time.Time){}): func(v reflect.Value, c EventContainer) {
+	reflect.TypeOf(func(a interface{}, event Eventer, timestamp time.Time){}): func(v reflect.Value, c EventContainer) {
 		v.Call([]reflect.Value {
 			reflect.ValueOf(c.Event()),
 			reflect.ValueOf(c.Timestamp()),
 		})
 	},
-	reflect.TypeOf(func(a Aggregate, event Eventer, timestamp time.Time, seq uint64){}): func(v reflect.Value, c EventContainer) {
+	reflect.TypeOf(func(a interface{}, event Eventer, timestamp time.Time, seq uint64){}): func(v reflect.Value, c EventContainer) {
 		v.Call([]reflect.Value {
 			reflect.ValueOf(c.Event()),
 			reflect.ValueOf(c.Timestamp()),
@@ -36,9 +43,9 @@ var eventHandlerTemplates map[reflect.Type]func(v reflect.Value, c EventContaine
 	},
 }
 
-func extractHandlers(agg interface{}) map[reflect.Type]func(c EventContainer) {
+func extractHandlers(listener interface{}) map[reflect.Type]func(c EventContainer) {
 	handlers := make(map[reflect.Type]func(c EventContainer))
-	t, v := reflect.TypeOf(agg), reflect.ValueOf(agg)
+	t, v := reflect.TypeOf(listener), reflect.ValueOf(listener)
 
 	for i := 0; i < t.NumMethod(); i++ {
 		methodType := t.Method(i)
@@ -59,8 +66,8 @@ func extractHandlers(agg interface{}) map[reflect.Type]func(c EventContainer) {
 func eventRouter(r Router) {
 	for {
 		select {
-		case c := <-r.EventConsumer():
-			fx, ok := r.Handlers()[reflect.TypeOf(c.Event())]
+		case c := <-r.channelOut():
+			fx, ok := r.handlers[reflect.TypeOf(c.Event())]
 			if (ok) {
 				fx(c)
 			}

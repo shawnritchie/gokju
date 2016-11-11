@@ -1,9 +1,10 @@
-package routing
+package event
 
 import (
 	"time"
 	"fmt"
 	"testing"
+	"reflect"
 )
 
 type BenchmarkEvent struct {
@@ -13,6 +14,7 @@ type BenchmarkEvent struct {
 func (e BenchmarkEvent)EventID() string {
 	return "this.is.the.unique.event.identifier.DummyEvent1"
 }
+
 
 type BenchmarkEventContainer struct {
 	event     Eventer
@@ -32,29 +34,27 @@ func (c BenchmarkEventContainer)Timestamp() time.Time{
 	return c.timestamp
 }
 
-type BenchmarkAggregate struct {
+
+type BenchmarkEventListener struct {
 	*BlockingRouter
 	total uint64
 	lastProcessed time.Time
 }
 
-func (a *BenchmarkAggregate)Router() Router {
-	return a.BlockingRouter
+func (l *BenchmarkEventListener)BenchmarkEventHandler(event BenchmarkEvent, seqNo uint64, timestamp time.Time) {
+	l.total = l.total + uint64(event.amount)
+	l.lastProcessed = timestamp
 }
 
-func (a *BenchmarkAggregate)BenchmarkEventHandler(event BenchmarkEvent, seqNo uint64, timestamp time.Time) {
-	a.total = a.total + uint64(event.amount)
-	a.lastProcessed = timestamp
-}
 
-func (a *BenchmarkAggregate)HardCodedRouter() {
+func (l *BenchmarkEventListener)HardCodedRouter() {
 	for {
 		select {
-		case event := <- a.events:
+		case event := <- l.Consumer.channelOut():
 			switch t := event.Event().(type) {
 			case BenchmarkEvent:
 				c := event.(BenchmarkEventContainer)
-				a.BenchmarkEventHandler(event.Event().(BenchmarkEvent), c.seq, c.timestamp)
+				l.BenchmarkEventHandler(event.Event().(BenchmarkEvent), c.seq, c.timestamp)
 			default:
 				fmt.Printf("unexpected type %T\n", t)
 			}
@@ -63,16 +63,20 @@ func (a *BenchmarkAggregate)HardCodedRouter() {
 }
 
 func BenchmarkHardCodedRouter(b *testing.B) {
-	aggregate := BenchmarkAggregate{total: 0}
-	aggregate.BlockingRouter = &BlockingRouter{
-		aggregate: &aggregate,
-		events: make(chan EventContainer),
-		lifecycle: make(chan interface{}),
+	listener := BenchmarkEventListener{total: 0}
+	queue := newBlockingQueue()
+	listener.BlockingRouter = &BlockingRouter{
+		Emitter: queue,
+		Router: Router{
+			Consumer: queue,
+			listener: listener,
+			handlers: map[reflect.Type]func(c EventContainer){},
+		},
 	}
-	go aggregate.HardCodedRouter()
+	go listener.HardCodedRouter()
 
 	for n := 0; n < b.N; n++ {
-		aggregate.events <- BenchmarkEventContainer{
+		listener.Emitter.channelIn() <- BenchmarkEventContainer{
 			event:BenchmarkEvent{amount:n},
 			seq:uint64(n),
 			timestamp:time.Now(),
@@ -81,11 +85,11 @@ func BenchmarkHardCodedRouter(b *testing.B) {
 }
 
 func BenchmarkBlockingRouter(b *testing.B) {
-	aggregate := BenchmarkAggregate{total: 0}
-	aggregate.BlockingRouter = NewBlockingRouter(&aggregate)
+	listener := BenchmarkEventListener{total: 0}
+	listener.BlockingRouter = NewBlockingRouter(&listener)
 
 	for n := 0; n < b.N; n++ {
-		aggregate.SendAndWait(BenchmarkEventContainer{
+		listener.SendAndWait(BenchmarkEventContainer{
 			event:BenchmarkEvent{amount:n},
 			seq:uint64(n),
 			timestamp:time.Now(),

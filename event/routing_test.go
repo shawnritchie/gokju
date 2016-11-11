@@ -1,4 +1,4 @@
-package routing
+package event
 
 import (
 	"testing"
@@ -56,12 +56,6 @@ func (e DummyEvent5)EventID() string {
 	return "this.is.the.unique.event.identifier.DummyEvent5"
 }
 
-type DummyAggregate struct {
-	*BlockingRouter
-	v1 string
-	v2 int
-	close chan int
-}
 
 type DummyEventContainer struct {
 	event     Eventer
@@ -81,43 +75,48 @@ func (c DummyEventContainer)Timestamp() time.Time{
 	return c.timestamp
 }
 
-func (a *DummyAggregate)Router() Router {
-	return a.BlockingRouter
+
+type DummyListener struct {
+	*BlockingRouter
+	v1 string
+	v2 int
+	close chan int
 }
 
-func (a *DummyAggregate)DummyEvent1Handler(event DummyEvent1, timestamp time.Time, seqNo uint64) {
+func (a *DummyListener)DummyEvent1Handler(event DummyEvent1, timestamp time.Time, seqNo uint64) {
 	a.v1 = event.v1
 	a.v2 = event.v2
 	a.close <- 50
 }
 
-func (a *DummyAggregate)DummyEvent2Handler(event DummyEvent2, timestamp time.Time, seqNo uint64) {
+func (a *DummyListener)DummyEvent2Handler(event DummyEvent2, timestamp time.Time, seqNo uint64) {
 	a.v1 = event.v1
 	a.v2 = event.v2
 }
 
-func (a *DummyAggregate)DummyEvent4Handler(event DummyEvent4, timestamp time.Time) {
+func (a *DummyListener)DummyEvent4Handler(event DummyEvent4, timestamp time.Time) {
 	a.v1 = event.v1
 	a.v2 = event.v2
 }
 
-func (a *DummyAggregate)DummyEvent5Handler(event DummyEvent5) {
+func (a *DummyListener)DummyEvent5Handler(event DummyEvent5) {
 	a.v1 = event.v1
 	a.v2 = event.v2
 }
 
-func (a *DummyAggregate)ThisIsNotAHandler(event struct{}) {
+func (a *DummyListener)ThisIsNotAHandler(event struct{}) {
 }
 
-func (a *DummyAggregate)RandomMethod(event struct{}) {
+func (a *DummyListener)RandomMethod(event struct{}) {
 }
 
-func (a *DummyAggregate)privateEventHandler(event DummyEvent1, seqNo uint64, timestamp time.Time) {
+func (a *DummyListener)privateEventHandler(event DummyEvent1, seqNo uint64, timestamp time.Time) {
 }
+
 
 func TestRouting_FollowsNamingConvention_Match(t *testing.T) {
 	t.Log("Test that the method actually end with Handler")
-	aggregate := DummyAggregate{v1: "", v2: 0}
+	aggregate := DummyListener{v1: "", v2: 0}
 	m, _ := reflect.TypeOf(&aggregate).MethodByName("ThisIsNotAHandler")
 
 	if (!followsNamingConvention(m)) {
@@ -127,7 +126,7 @@ func TestRouting_FollowsNamingConvention_Match(t *testing.T) {
 
 func TestRouting_FollowsNamingConvention_NoMatch(t *testing.T) {
 	t.Log("Test methods that do not end with Handler to not Match")
-	aggregate := DummyAggregate{v1: "", v2: 0}
+	aggregate := DummyListener{v1: "", v2: 0}
 	m, _ := reflect.TypeOf(&aggregate).MethodByName("RandomMethod")
 
 	if (followsNamingConvention(m)) {
@@ -137,7 +136,7 @@ func TestRouting_FollowsNamingConvention_NoMatch(t *testing.T) {
 
 func TestRouting_ExtractHandlers(t *testing.T) {
 	t.Log("Creating an Aggregate with 2 handlers")
-	aggregate := DummyAggregate{v1: "", v2: 0}
+	aggregate := DummyListener{v1: "", v2: 0}
 	handlers := extractHandlers(&aggregate)
 	if (handlers == nil) || (len(handlers) != 4) {
 		t.Errorf("Expected 4 handlers, but instead %d were created.", len(handlers))
@@ -146,7 +145,7 @@ func TestRouting_ExtractHandlers(t *testing.T) {
 
 func TestRouting_ShowThatPointerToStructIsImplementingAggregate(t *testing.T) {
 	t.Log("Creating an Aggregate but pass the value instead of the pointer, should yield 0 handlers")
-	aggregate := DummyAggregate{v1: "", v2: 0}
+	aggregate := DummyListener{v1: "", v2: 0}
 	handlers := extractHandlers(aggregate)
 	if (handlers == nil) || (len(handlers) != 0) {
 		t.Errorf("Expected 0 handlers, but instead %d were created.", len(handlers))
@@ -155,22 +154,16 @@ func TestRouting_ShowThatPointerToStructIsImplementingAggregate(t *testing.T) {
 
 func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
-	aggregate := DummyAggregate{v1: "", v2: 0, close: make(chan int)}
-	b := &BlockingRouter{
-		aggregate: &aggregate,
-		events: make(chan EventContainer),
-		lifecycle: make(chan interface{}),
-	}
-	b.handlers = extractHandlers(b.aggregate)
-	go eventRouter(b)
+	listener := DummyListener{v1: "", v2: 0, close: make(chan int)}
+	listener.BlockingRouter = NewBlockingRouter(&listener)
 
-	b.events <- DummyEventContainer{
+	listener.Send(DummyEventContainer{
 		event: DummyEvent1{ v1:"test", v2:15 },
 		seq: uint64(1),
 		timestamp: time.Now(),
-	}
+	})
 
-	result := <- aggregate.close
+	result := <- listener.close
 
 	if (result != 50) {
 		t.Errorf("The incorrect secret code has been passed down the event handler")
@@ -179,55 +172,44 @@ func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 
 func TestRouting_EventRouterForDifferentFunctionDefintions(t *testing.T) {
 	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
-	aggregate := DummyAggregate{v1: "", v2: 0, close: make(chan int)}
-	b := &BlockingRouter{
-		aggregate: &aggregate,
-		events: make(chan EventContainer),
-		lifecycle: make(chan interface{}),
-	}
-	b.handlers = extractHandlers(b.aggregate)
-	go eventRouter(b)
+	listener := DummyListener{v1: "", v2: 0, close: make(chan int)}
+	listener.BlockingRouter = NewBlockingRouter(&listener)
 
-	b.events <- DummyEventContainer{
+	listener.Send(DummyEventContainer{
 		event: DummyEvent2{ v1:"test", v2:15 },
 		seq: uint64(1),
 		timestamp: time.Now(),
-	}
+	})
 
-	b.events <- DummyEventContainer{
+	listener.Send(DummyEventContainer{
 		event: DummyEvent4{ v1:"test", v2:15 },
 		seq: uint64(2),
 		timestamp: time.Now(),
-	}
+	})
 
-	b.events <- DummyEventContainer{
+	listener.Send(DummyEventContainer{
 		event: DummyEvent5{ v1:"test", v2:15 },
 		seq: uint64(3),
 		timestamp: time.Now(),
-	}
+	})
 }
 
 func TestRouting_EventRouter_SendingUnknownEventDoesNotBreakStuff(t *testing.T) {
 	t.Log("Check if routing is working correctly that is passing an event which doesn't have a handler doesn't cuase a panic")
-	aggregate := DummyAggregate{v1: "", v2: 0, close: make(chan int)}
-	b := &BlockingRouter{
-		aggregate: &aggregate,
-		events: make(chan EventContainer),
-		lifecycle: make(chan interface{}),
-	}
-	b.handlers = extractHandlers(b.aggregate)
-	go eventRouter(b)
+	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
+	listener := DummyListener{v1: "", v2: 0, close: make(chan int)}
+	listener.BlockingRouter = NewBlockingRouter(&listener)
 
-	b.events <- DummyEventContainer{
+	listener.Send(DummyEventContainer{
 		event: DummyEvent3{ v1:"test", v2:15 },
 		seq: uint64(1),
 		timestamp: time.Now(),
-	}
+	})
 }
 
 
 func TestReflection_IsFuncTypeTheSameBasedOnDefinition(t *testing.T) {
-	aggregate := DummyAggregate{v1: "", v2: 0, close: make(chan int)}
+	aggregate := DummyListener{v1: "", v2: 0, close: make(chan int)}
 	a := reflect.TypeOf(aggregate.DummyEvent1Handler)
 	b := reflect.TypeOf(func(event DummyEvent1, timestamp time.Time, seqNo uint64){})
 	if (a != b) {
