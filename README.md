@@ -21,10 +21,12 @@ Reflections Lessons Learnt
 
 TODO::
 ------
+- [ ] sending on a channel with a timeout
 - [ ] Implement logging
 - [ ] Implement unit test for the current functionality
 - [ ] Implement a asynchronous router, making use of buffered channels, guranteeing order but synchronous execution of the messages
 - [ ] Implement a circuit breaker which fails all message delivery atempts in the channel bugger is full
 - [ ] Implement life cycle manager able to pause, shutdown and signal
+- [ ] Make sure all queues are depleted before shutting down
 - [ ] Implement clean shutdown functionality making sure all synchronous messages are delivered and that all items on the mailbox are consumed
 - [ ] Implement the concept of unit of work allowing multiple transactions to be managed as one
