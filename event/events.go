@@ -1,21 +1,25 @@
 package event
 
-import "time"
+import (
+	"time"
+	"github.com/shawnritchie/gokju/structs"
+)
 
 type Eventer interface {
 	EventID() string
 }
 
-type EventContainer interface {
-	Event() Eventer
-	Seq() uint64
-	Timestamp() time.Time
+
+type EventContainer struct {
+	event    Eventer
+	metadata structs.MetaData
 }
 
 type Emitter interface {
 	channelIn() chan <- EventContainer
 	Send(e EventContainer)
 	SendAndWait(e EventContainer)
+	SendAndWaitWithTimeout(e EventContainer, d time.Duration) (succ bool)
 }
 
 type Consumer interface {
@@ -41,8 +45,29 @@ func (s *blockingQueue)Send(e EventContainer) {
 	}()
 }
 
+func (s *blockingQueue)SendAck(e EventContainer, d time.Duration, ack func(EventContainer), fail func(EventContainer)) {
+	go func() {
+		select {
+		case s.queue <- e:
+			ack(e)
+		case <-time.After(d):
+			fail(e)
+		}
+	}()
+}
+
 func (s *blockingQueue)SendAndWait(e EventContainer) {
 	s.queue <- e
+}
+
+func (s *blockingQueue)SendAndWaitWithTimeout(e EventContainer, d time.Duration) (succ bool) {
+	select {
+	case s.queue <- e:
+		succ = true
+	case <-time.After(d):
+		succ = false
+	}
+	return succ
 }
 
 func newBlockingQueue() *blockingQueue {
