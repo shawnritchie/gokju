@@ -5,9 +5,9 @@ type BlockingRouter struct {
 	Router
 }
 
-func NewBlockingRouter(listener interface{}) *BlockingRouter {
+func NewBlockingRouter(context RouterContext, listener interface{}) *BlockingRouter {
 	q := newBlockingQueue()
-	r := NewRouter(q, listener)
+	r := NewRouter(context, q, listener)
 	return &BlockingRouter{
 		Emitter: q,
 		Router: r,

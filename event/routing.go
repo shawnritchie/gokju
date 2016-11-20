@@ -3,59 +3,39 @@ package event
 import (
 	"reflect"
 	"strings"
-	"time"
 )
 
 type Router struct {
+	RouterContext
 	Consumer
 	listener interface{}
 	handlers map[reflect.Type]func(c EventContainer)
 }
 
-func NewRouter(c Consumer, listener interface{}) Router {
+func NewRouter(context RouterContext, consumer Consumer, listener interface{}) Router {
 	b := Router{
+		RouterContext: context,
 		listener: listener,
-		Consumer: c,
+		Consumer: consumer,
 	}
-	b.handlers = extractHandlers(b.listener)
+	b.handlers = extractHandlers(context, b.listener)
 	go eventRouter(b)
 	return b
 }
 
-var eventHandlerTemplates map[reflect.Type]func(v reflect.Value, c EventContainer) = map[reflect.Type]func(v reflect.Value, c EventContainer){
-	reflect.TypeOf(func(a interface{}, event Eventer){}): func(v reflect.Value, c EventContainer) {
-		v.Call([]reflect.Value {
-			reflect.ValueOf(c.Event()),
-		})
-	},
-	reflect.TypeOf(func(a interface{}, event Eventer, timestamp time.Time){}): func(v reflect.Value, c EventContainer) {
-		v.Call([]reflect.Value {
-			reflect.ValueOf(c.Event()),
-			reflect.ValueOf(c.Timestamp()),
-		})
-	},
-	reflect.TypeOf(func(a interface{}, event Eventer, timestamp time.Time, seq uint64){}): func(v reflect.Value, c EventContainer) {
-		v.Call([]reflect.Value {
-			reflect.ValueOf(c.Event()),
-			reflect.ValueOf(c.Timestamp()),
-			reflect.ValueOf(c.Seq()),
-		})
-	},
-}
-
-func extractHandlers(listener interface{}) map[reflect.Type]func(c EventContainer) {
+func extractHandlers(context RouterContext, listener interface{}) map[reflect.Type]func(c EventContainer) {
 	handlers := make(map[reflect.Type]func(c EventContainer))
 	t, v := reflect.TypeOf(listener), reflect.ValueOf(listener)
 
 	for i := 0; i < t.NumMethod(); i++ {
 		methodType := t.Method(i)
-		def := matchesEventHandlerDefinitions(methodType.Type)
+		def := matchesEventHandlerDefinitions(context, methodType.Type)
 		if def != nil && followsNamingConvention(methodType) {
 			methodVal := v.MethodByName(methodType.Name)
 			handlers[methodVal.Type().In(0)] = func(c EventContainer) {
 				v := methodVal
 				d := def
-				eventHandlerTemplates[d](v, c)
+				context.methodDefinitions[d](v, c)
 			}
 		}
 	}
@@ -67,7 +47,7 @@ func eventRouter(r Router) {
 	for {
 		select {
 		case c := <-r.channelOut():
-			fx, ok := r.handlers[reflect.TypeOf(c.Event())]
+			fx, ok := r.handlers[reflect.TypeOf(c.event)]
 			if (ok) {
 				fx(c)
 			}
@@ -76,8 +56,8 @@ func eventRouter(r Router) {
 	}
 }
 
-func matchesEventHandlerDefinitions(t reflect.Type) reflect.Type {
-	for k, _ := range eventHandlerTemplates {
+func matchesEventHandlerDefinitions(context RouterContext, t reflect.Type) reflect.Type {
+	for k, _ := range context.methodDefinitions {
 		if k.NumIn() == t.NumIn() {
 			s := true;
 			for i:= 0; i<k.NumIn(); i++ {
@@ -98,3 +78,4 @@ func matchesEventHandlerDefinitions(t reflect.Type) reflect.Type {
 func followsNamingConvention(m reflect.Method) bool {
 	return strings.HasSuffix(m.Name, "Handler")
 }
+

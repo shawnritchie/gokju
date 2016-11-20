@@ -1,9 +1,11 @@
 package event
 
+
 import (
 	"testing"
 	"time"
 	"reflect"
+	"github.com/shawnritchie/gokju/structs"
 )
 
 type DummyEvent1 struct {
@@ -57,25 +59,6 @@ func (e DummyEvent5)EventID() string {
 }
 
 
-type DummyEventContainer struct {
-	event     Eventer
-	seq     uint64
-	timestamp time.Time
-}
-
-func (c DummyEventContainer)Event() Eventer{
-	return c.event
-}
-
-func (c DummyEventContainer)Seq() uint64 {
-	return c.seq
-}
-
-func (c DummyEventContainer)Timestamp() time.Time{
-	return c.timestamp
-}
-
-
 type DummyListener struct {
 	*BlockingRouter
 	v1 string
@@ -113,6 +96,8 @@ func (a *DummyListener)RandomMethod(event struct{}) {
 func (a *DummyListener)privateEventHandler(event DummyEvent1, seqNo uint64, timestamp time.Time) {
 }
 
+var routingContext RouterContext = NewRouterContext(containeKeyDef)
+
 
 func TestRouting_FollowsNamingConvention_Match(t *testing.T) {
 	t.Log("Test that the method actually end with Handler")
@@ -135,9 +120,9 @@ func TestRouting_FollowsNamingConvention_NoMatch(t *testing.T) {
 }
 
 func TestRouting_ExtractHandlers(t *testing.T) {
-	t.Log("Creating an Aggregate with 2 handlers")
+	t.Log("Creating an Aggregate with 4 handlers")
 	aggregate := DummyListener{v1: "", v2: 0}
-	handlers := extractHandlers(&aggregate)
+	handlers := extractHandlers(routingContext, &aggregate)
 	if (handlers == nil) || (len(handlers) != 4) {
 		t.Errorf("Expected 4 handlers, but instead %d were created.", len(handlers))
 	}
@@ -146,7 +131,7 @@ func TestRouting_ExtractHandlers(t *testing.T) {
 func TestRouting_ShowThatPointerToStructIsImplementingAggregate(t *testing.T) {
 	t.Log("Creating an Aggregate but pass the value instead of the pointer, should yield 0 handlers")
 	aggregate := DummyListener{v1: "", v2: 0}
-	handlers := extractHandlers(aggregate)
+	handlers := extractHandlers(routingContext, aggregate)
 	if (handlers == nil) || (len(handlers) != 0) {
 		t.Errorf("Expected 0 handlers, but instead %d were created.", len(handlers))
 	}
@@ -155,12 +140,14 @@ func TestRouting_ShowThatPointerToStructIsImplementingAggregate(t *testing.T) {
 func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
 	listener := DummyListener{v1: "", v2: 0, close: make(chan int)}
-	listener.BlockingRouter = NewBlockingRouter(&listener)
+	listener.BlockingRouter = NewBlockingRouter(routingContext, &listener)
 
-	listener.Send(DummyEventContainer{
-		event: DummyEvent1{ v1:"test", v2:15 },
-		seq: uint64(1),
-		timestamp: time.Now(),
+	listener.Send(EventContainer{
+		event: DummyEvent1{v1:"test", v2:15 },
+		metadata : structs.MetaData{
+			seqKey: uint64(1),
+			timestampKey: time.Now(),
+		},
 	})
 
 	result := <- listener.close
@@ -173,24 +160,30 @@ func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 func TestRouting_EventRouterForDifferentFunctionDefintions(t *testing.T) {
 	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
 	listener := DummyListener{v1: "", v2: 0, close: make(chan int)}
-	listener.BlockingRouter = NewBlockingRouter(&listener)
+	listener.BlockingRouter = NewBlockingRouter(routingContext, &listener)
 
-	listener.Send(DummyEventContainer{
+	listener.Send(EventContainer{
 		event: DummyEvent2{ v1:"test", v2:15 },
-		seq: uint64(1),
-		timestamp: time.Now(),
+		metadata : structs.MetaData{
+			seqKey: uint64(1),
+			timestampKey: time.Now(),
+		},
 	})
 
-	listener.Send(DummyEventContainer{
+	listener.Send(EventContainer{
 		event: DummyEvent4{ v1:"test", v2:15 },
-		seq: uint64(2),
-		timestamp: time.Now(),
+		metadata : structs.MetaData{
+			seqKey: uint64(2),
+			timestampKey: time.Now(),
+		},
 	})
 
-	listener.Send(DummyEventContainer{
+	listener.Send(EventContainer{
 		event: DummyEvent5{ v1:"test", v2:15 },
-		seq: uint64(3),
-		timestamp: time.Now(),
+		metadata : structs.MetaData{
+			seqKey: uint64(3),
+			timestampKey: time.Now(),
+		},
 	})
 }
 
@@ -198,12 +191,14 @@ func TestRouting_EventRouter_SendingUnknownEventDoesNotBreakStuff(t *testing.T) 
 	t.Log("Check if routing is working correctly that is passing an event which doesn't have a handler doesn't cuase a panic")
 	t.Log("Check if routing is working correctly that is passing an event and making sure the event handler is invoked")
 	listener := DummyListener{v1: "", v2: 0, close: make(chan int)}
-	listener.BlockingRouter = NewBlockingRouter(&listener)
+	listener.BlockingRouter = NewBlockingRouter(routingContext, &listener)
 
-	listener.Send(DummyEventContainer{
+	listener.Send(EventContainer{
 		event: DummyEvent3{ v1:"test", v2:15 },
-		seq: uint64(1),
-		timestamp: time.Now(),
+		metadata : structs.MetaData{
+			seqKey: uint64(1),
+			timestampKey: time.Now(),
+		},
 	})
 }
 
@@ -216,3 +211,5 @@ func TestReflection_IsFuncTypeTheSameBasedOnDefinition(t *testing.T) {
 		t.Errorf("Function definition are not the same :(")
 	}
 }
+
+
