@@ -94,9 +94,9 @@ func extractMethodDefinitions(t structs.MetaDataDefinition) map[reflect.Type]fun
 		results[fxDefinition(&t, paramKeys)] = func(v reflect.Value, c EventContainer) {
 			keys := copyKeys
 			vals := params
-			vals[0] = reflect.ValueOf(c.event)
+			vals[0] = reflect.ValueOf(c.Event)
 			for i, key := range keys {
-				vals[i+1] = reflect.ValueOf(c.metadata[key])
+				vals[i+1] = reflect.ValueOf(c.MetaData[key])
 			}
 			v.Call(vals)
 		}

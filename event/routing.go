@@ -47,7 +47,7 @@ func eventRouter(r Router) {
 	for {
 		select {
 		case c := <-r.channelOut():
-			fx, ok := r.handlers[reflect.TypeOf(c.event)]
+			fx, ok := r.handlers[reflect.TypeOf(c.Event)]
 			if (ok) {
 				fx(c)
 			}

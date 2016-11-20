@@ -143,8 +143,8 @@ func TestRouting_EventRouter_RoutingCorrectly(t *testing.T) {
 	listener.BlockingRouter = NewBlockingRouter(routingContext, &listener)
 
 	listener.Send(EventContainer{
-		event: DummyEvent1{v1:"test", v2:15 },
-		metadata : structs.MetaData{
+		Event: DummyEvent1{v1:"test", v2:15 },
+		MetaData : structs.MetaData{
 			seqKey: uint64(1),
 			timestampKey: time.Now(),
 		},
@@ -163,24 +163,24 @@ func TestRouting_EventRouterForDifferentFunctionDefintions(t *testing.T) {
 	listener.BlockingRouter = NewBlockingRouter(routingContext, &listener)
 
 	listener.Send(EventContainer{
-		event: DummyEvent2{ v1:"test", v2:15 },
-		metadata : structs.MetaData{
+		Event: DummyEvent2{ v1:"test", v2:15 },
+		MetaData : structs.MetaData{
 			seqKey: uint64(1),
 			timestampKey: time.Now(),
 		},
 	})
 
 	listener.Send(EventContainer{
-		event: DummyEvent4{ v1:"test", v2:15 },
-		metadata : structs.MetaData{
+		Event: DummyEvent4{ v1:"test", v2:15 },
+		MetaData : structs.MetaData{
 			seqKey: uint64(2),
 			timestampKey: time.Now(),
 		},
 	})
 
 	listener.Send(EventContainer{
-		event: DummyEvent5{ v1:"test", v2:15 },
-		metadata : structs.MetaData{
+		Event: DummyEvent5{ v1:"test", v2:15 },
+		MetaData : structs.MetaData{
 			seqKey: uint64(3),
 			timestampKey: time.Now(),
 		},
@@ -194,8 +194,8 @@ func TestRouting_EventRouter_SendingUnknownEventDoesNotBreakStuff(t *testing.T) 
 	listener.BlockingRouter = NewBlockingRouter(routingContext, &listener)
 
 	listener.Send(EventContainer{
-		event: DummyEvent3{ v1:"test", v2:15 },
-		metadata : structs.MetaData{
+		Event: DummyEvent3{ v1:"test", v2:15 },
+		MetaData : structs.MetaData{
 			seqKey: uint64(1),
 			timestampKey: time.Now(),
 		},

@@ -11,8 +11,8 @@ type Eventer interface {
 
 
 type EventContainer struct {
-	event    Eventer
-	metadata structs.MetaData
+	Event    Eventer
+	MetaData structs.MetaData
 }
 
 type Emitter interface {

@@ -33,12 +33,12 @@ func (l *BenchmarkEventListener)HardCodedRouter() {
 	for {
 		select {
 		case event := <- l.Consumer.channelOut():
-			switch t := event.event.(type) {
+			switch t := event.Event.(type) {
 			case BenchmarkEvent:
 				c := event
-				l.BenchmarkEventHandler(event.event.(BenchmarkEvent),
-					c.metadata[timestampKey].(time.Time),
-					c.metadata[seqKey].(uint64))
+				l.BenchmarkEventHandler(event.Event.(BenchmarkEvent),
+					c.MetaData[timestampKey].(time.Time),
+					c.MetaData[seqKey].(uint64))
 			default:
 				fmt.Printf("unexpected type %T\n", t)
 			}
@@ -66,8 +66,8 @@ func BenchmarkHardCodedRouter(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		listener.Emitter.channelIn() <- EventContainer{
-			event:BenchmarkEvent{amount:n},
-			metadata: m,
+			Event:BenchmarkEvent{amount:n},
+			MetaData: m,
 		}
 	}
 }
@@ -84,8 +84,8 @@ func BenchmarkBlockingRouter(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		listener.SendAndWait(EventContainer{
-			event:BenchmarkEvent{amount:n},
-			metadata: m,
+			Event:BenchmarkEvent{amount:n},
+			MetaData: m,
 		})
 	}
 	b.StopTimer()
