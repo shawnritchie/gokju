@@ -2,23 +2,25 @@ package event
 
 import (
 	"time"
-	"fmt"
 	"testing"
 	"reflect"
-	"github.com/shawnritchie/gokju/structs"
+	"fmt"
 )
 
 type BenchmarkEvent struct {
 	amount int
 }
 
-func (e BenchmarkEvent)EventID() string {
-	return "this.is.the.unique.event.identifier.DummyEvent1"
+func (e BenchmarkEvent)EventID() Identifier {
+	return Identifier("this.is.the.unique.identifier.DummyEvent1")
 }
 
+func (e BenchmarkEvent)Version() int {
+	return 0
+}
 
 type BenchmarkEventListener struct {
-	*BlockingRouter
+	*BlockingEventProcessor
 	total uint64
 	lastProcessed time.Time
 }
@@ -32,7 +34,7 @@ func (l *BenchmarkEventListener)BenchmarkEventHandler(event BenchmarkEvent, time
 func (l *BenchmarkEventListener)HardCodedRouter() {
 	for {
 		select {
-		case event := <- l.Consumer.channelOut():
+		case event := <- l.Consume():
 			switch t := event.Event.(type) {
 			case BenchmarkEvent:
 				c := event
@@ -48,24 +50,22 @@ func (l *BenchmarkEventListener)HardCodedRouter() {
 
 func BenchmarkHardCodedRouter(b *testing.B) {
 	listener := BenchmarkEventListener{total: 0}
-	queue := newBlockingQueue()
-	listener.BlockingRouter = &BlockingRouter{
-		Emitter: queue,
-		Router: Router{
-			Consumer: queue,
-			listener: listener,
-			handlers: map[reflect.Type]func(c EventContainer){},
-		},
+	queue := NewBlockingQueue()
+	listener.BlockingEventProcessor = &BlockingEventProcessor{
+		Emitter: &queue,
+		Consumer: &queue,
+		Addressable: listener,
+		handlers: map[reflect.Type]func(c Container){},
 	}
 	go listener.HardCodedRouter()
 
-	m := structs.MetaData{
+	m := MetaData{
 		seqKey: uint64(1),
 		timestampKey: time.Now(),
 	}
 
 	for n := 0; n < b.N; n++ {
-		listener.Emitter.channelIn() <- EventContainer{
+		listener.Emitter.Emit() <- Container{
 			Event:BenchmarkEvent{amount:n},
 			MetaData: m,
 		}
@@ -73,17 +73,17 @@ func BenchmarkHardCodedRouter(b *testing.B) {
 }
 
 func BenchmarkBlockingRouter(b *testing.B) {
-	routingContext := NewRouterContext(containeKeyDef)
+	routingContext := NewContainerContext(containeKeyDef)
 	listener := BenchmarkEventListener{total: 0}
-	listener.BlockingRouter = NewBlockingRouter(routingContext, &listener)
+	listener.BlockingEventProcessor = NewBlockingProcessor(&routingContext, &listener)
 
-	m := structs.MetaData{
+	m := MetaData{
 		seqKey: uint64(1),
 		timestampKey: time.Now(),
 	}
 
 	for n := 0; n < b.N; n++ {
-		listener.SendAndWait(EventContainer{
+		listener.SendAndWait(Container{
 			Event:BenchmarkEvent{amount:n},
 			MetaData: m,
 		})
