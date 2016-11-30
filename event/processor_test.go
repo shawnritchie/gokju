@@ -6,82 +6,43 @@ import (
 	"reflect"
 )
 
-type DummyEvent1 struct {
-	v1 string
-	v2 int
-	close chan struct{}
-}
+type (
+	DummyListener struct {
+		v1 string
+		v2 int
+		close chan int
+	}
 
-func (e DummyEvent1)EventID() Identifier {
-	return Identifier("this.is.the.unique.identifier.DummyEvent1")
-}
+	DummyEvent1 struct {
+		v1 string
+		v2 int
+		close chan struct{}
+	}
 
-func (e DummyEvent1)Version() int {
-	return 0
-}
+	DummyEvent2 struct {
+		v1 string
+		v2 int
+		close chan struct{}
+	}
 
-type DummyEvent2 struct {
-	v1 string
-	v2 int
-	close chan struct{}
-}
+	DummyEvent3 struct {
+		v1 string
+		v2 int
+		close chan struct{}
+	}
 
-func (e DummyEvent2)EventID() Identifier {
-	return Identifier("this.is.the.unique.identifier.DummyEvent1")
-}
+	DummyEvent4 struct {
+		v1 string
+		v2 int
+		close chan struct{}
+	}
 
-func (e DummyEvent2)Version() int {
-	return 0
-}
-
-type DummyEvent3 struct {
-	v1 string
-	v2 int
-	close chan struct{}
-}
-
-func (e DummyEvent3)EventID() Identifier {
-	return Identifier("this.is.the.unique.identifier.DummyEvent1")
-}
-
-func (e DummyEvent3)Version() int {
-	return 0
-}
-
-type DummyEvent4 struct {
-	v1 string
-	v2 int
-	close chan struct{}
-}
-
-func (e DummyEvent4)EventID() Identifier {
-	return Identifier("this.is.the.unique.identifier.DummyEvent4")
-}
-
-func (e DummyEvent4)Version() int {
-	return 0
-}
-
-type DummyEvent5 struct {
-	v1 string
-	v2 int
-	close chan struct{}
-}
-
-func (e DummyEvent5)EventID() Identifier {
-	return Identifier("this.is.the.unique.identifier.DummyEvent5")
-}
-
-func (e DummyEvent5)Version() int {
-	return 0
-}
-
-
-type DummyListener struct {
-	v1 string
-	v2 int
-	close chan int
-}
+	DummyEvent5 struct {
+		v1 string
+		v2 int
+		close chan struct{}
+	}
+)
 
 func (a *DummyListener)Address() Address{
 	return Address("unique.address.bro")
@@ -144,8 +105,8 @@ func TestRouting_ExtractHandlers(t *testing.T) {
 	t.Log("Creating an Aggregate with 4 handlers")
 	aggregate := DummyListener{v1: "", v2: 0}
 	handlers := extractHandlers(&routingContext, &aggregate)
-	if (handlers == nil) || (len(handlers) != 4) {
-		t.Errorf("Expected 4 handlers, but instead %d were created.", len(handlers))
+	if (handlers == nil) || (len(handlers) != 5) {
+		t.Errorf("Expected 5 handlers, but instead %d were created.", len(handlers))
 	}
 }
 

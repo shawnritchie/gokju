@@ -7,23 +7,18 @@ import (
 	"fmt"
 )
 
-type BenchmarkEvent struct {
-	amount int
-}
+type (
+	BenchmarkEventListener struct {
+		*BlockingEventProcessor
+		total uint64
+		lastProcessed time.Time
+	}
 
-func (e BenchmarkEvent)EventID() Identifier {
-	return Identifier("this.is.the.unique.identifier.DummyEvent1")
-}
-
-func (e BenchmarkEvent)Version() int {
-	return 0
-}
-
-type BenchmarkEventListener struct {
-	*BlockingEventProcessor
-	total uint64
-	lastProcessed time.Time
-}
+	BenchmarkEvent struct {
+		Event `id:"BenchmarkEvent" v:"0"`
+		amount int
+	}
+)
 
 func (l *BenchmarkEventListener)BenchmarkEventHandler(event BenchmarkEvent, timestamp time.Time, seqNo uint64) {
 	l.total = l.total + uint64(event.amount)

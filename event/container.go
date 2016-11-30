@@ -5,7 +5,7 @@ import (
 )
 
 type Container struct {
-	Event    Eventer
+	Event    Event
 	MetaData MetaData
 }
 
@@ -99,7 +99,7 @@ func allPossibleOutcomes(t MetaDataDefinition) [][]MetaDataIdentifier {
 func fxDefinition(t *MetaDataDefinition, paramKeys []MetaDataIdentifier) reflect.Type {
 	types := make([]reflect.Type, len(paramKeys)+2)
 	types[0] = reflect.TypeOf((*interface{})(nil)).Elem()
-	types[1] = reflect.TypeOf((*Eventer)(nil)).Elem()
+	types[1] = reflect.TypeOf((*Event)(nil)).Elem()
 	for i, key := range paramKeys {
 		types[i+2] = (*t).Type(key)
 	}

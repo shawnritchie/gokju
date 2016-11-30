@@ -14,6 +14,10 @@ type (
 	valueAddedEvent struct {
 		add int
 	}
+
+	valueAddedEventV1 struct {
+		add uint64
+	}
 )
 
 func (a *eventBusListener)Address() Address {
@@ -24,9 +28,6 @@ func (a *eventBusListener)ValueAddedEventHandler(e valueAddedEvent) {
 	a.total = a.total + e.add
 	a.results <- a.total
 }
-
-func (e valueAddedEvent)EventID() Identifier { return Identifier("EventID") }
-func (e valueAddedEvent)Version() int { return 0 }
 
 func TestSimpleEventBus_Subscribe(t *testing.T) {
 	eventBus := NewSimpleEventBus()

@@ -1,14 +1,12 @@
 package event
 
-import "reflect"
-
 type (
 	Interceptor struct {
-		Event reflect.Type
+		Identifier Identifier
 		Version int
-		in <- chan Eventer
-		out chan <- Eventer
-		Intercept func(Eventer) Eventer
+		in <- chan Event
+		out chan <- Event
+		Intercept func(Event) Event
 	}
 
 	Interceptors []Interceptor

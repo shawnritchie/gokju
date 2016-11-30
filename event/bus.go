@@ -24,7 +24,7 @@ type Bus interface {
 type SimpleEventBus struct {
 	mutex sync.RWMutex
 	eventProcessors []managedEventProcessor
-	interceptors map[reflect.Type]Interceptors
+	interceptors map[Identifier]Interceptors
 }
 
 type managedEventProcessor struct {
@@ -59,7 +59,7 @@ func NewSimpleEventBus() SimpleEventBus {
 	return SimpleEventBus{
 		mutex: sync.RWMutex{},
 		eventProcessors: []managedEventProcessor{},
-		interceptors: map[reflect.Type]Interceptors{},
+		interceptors: map[Identifier]Interceptors{},
 	}
 }
 
@@ -87,17 +87,17 @@ func (s *SimpleEventBus)Register(interceptor Interceptor) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	t := reflect.TypeOf(interceptor)
-	if _, prs := s.interceptors[t]; !prs {
-		s.interceptors[t] = []Interceptor{}
+	id := interceptor.Identifier
+	if _, prs := s.interceptors[id]; !prs {
+		s.interceptors[id] = []Interceptor{}
 	}
 
-	if err := isValidInterceptor(s.interceptors[t], interceptor); err != nil {
+	if err := isValidInterceptor(s.interceptors[id], interceptor); err != nil {
 		return err
 	}
 
-	s.interceptors[t] = append(s.interceptors[t], interceptor)
-	sort.Sort(s.interceptors[t])
+	s.interceptors[id] = append(s.interceptors[id], interceptor)
+	sort.Sort(s.interceptors[id])
 
 	return nil
 }
@@ -127,11 +127,12 @@ func (s *SimpleEventBus)Publish(events ...Container) {
 	}
 }
 
-func (s *SimpleEventBus)intercept(e Eventer) Eventer {
-	t := reflect.TypeOf(e)
-	if _, prs := s.interceptors[t]; prs {
-		for _, interceptor := range s.interceptors[t] {
-			if (interceptor.Version - 1) ==  e.Version() {
+func (s *SimpleEventBus)intercept(e Event) Event {
+	id := EventIdentifier(e)
+	v := EventVersion(e)
+	if _, prs := s.interceptors[id]; prs {
+		for _, interceptor := range s.interceptors[id] {
+			if (interceptor.Version - 1) ==  v {
 				e = interceptor.Intercept(e)
 			}
 		}
