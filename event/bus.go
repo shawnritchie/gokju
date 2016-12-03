@@ -1,12 +1,9 @@
 package event
 
-
 import (
 	"sync"
 	"reflect"
 	"errors"
-	"sort"
-	"fmt"
 )
 
 type Address string
@@ -89,55 +86,46 @@ func (s *SimpleEventBus)Register(interceptor Interceptor) error {
 
 	id := interceptor.Identifier
 	if _, prs := s.interceptors[id]; !prs {
-		s.interceptors[id] = []Interceptor{}
-	}
-
-	if err := isValidInterceptor(s.interceptors[id], interceptor); err != nil {
-		return err
+		s.interceptors[id] = Interceptors{}
 	}
 
 	s.interceptors[id] = append(s.interceptors[id], interceptor)
-	sort.Sort(s.interceptors[id])
-
-	return nil
-}
-
-func isValidInterceptor(chain []Interceptor, add Interceptor) error {
-	if len(chain) == 0 && add.Version != 1 {
-		return errors.New("Expected the first interceptor to start with version 1")
-	} else if chain[len(chain) - 1].Version+1 != add.Version {
-		return errors.New(fmt.Sprintf("Expected Version %v, Received Version %v", chain[len(chain) - 1].Version+1, add.Version))
-	}
 
 	return nil
 }
 
 
-func (s *SimpleEventBus)Publish(events ...Container) {
+func (s *SimpleEventBus)Publish(containers ...Container) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	for _, e := range events {
+	for _, c := range containers {
 		for _, m := range s.eventProcessors {
 			go func () {
-				e.Event = s.intercept(e.Event)
-				m.consume <- e
+				container, err := s.intercept(c)
+				if (err != nil) {
+					//TODO:: LOGGING
+				} else {
+					m.consume <- container
+				}
 			}()
 		}
 	}
 }
 
-func (s *SimpleEventBus)intercept(e Event) Event {
-	id := EventIdentifier(e)
-	v := EventVersion(e)
+func (s *SimpleEventBus)intercept(c Container) (Container, error) {
+	id := EventIdentifier(c)
+	var e error = nil
+	container := c
 	if _, prs := s.interceptors[id]; prs {
 		for _, interceptor := range s.interceptors[id] {
-			if (interceptor.Version - 1) ==  v {
-				e = interceptor.Intercept(e)
+			container, e = interceptor.Intercept(c)
+			if (e != nil) {
+				return Container{}, e
 			}
 		}
 	}
-	return e
+	return container, nil
 }
 
 func(s *SimpleEventBus)findProcessor(p Processor) int {
