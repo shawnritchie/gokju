@@ -1,4 +1,4 @@
-GoKju
+gokju
 ------
 In the process of learning GoLang and other programming techniques I am trying to develop a toolkit to be used in a CQRS/ES applications.
 
