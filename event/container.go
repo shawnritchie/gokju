@@ -7,6 +7,17 @@ import (
 type Container struct {
 	Event    Event
 	MetaData MetaData
+	Identifier Identifier
+	Version Version
+}
+
+func NewContainer(e Event, m MetaData) Container {
+	return Container{
+		Event: e,
+		MetaData: m,
+		Identifier: EventIdentifier(e),
+		Version: EventVersion(e),
+	}
 }
 
 type (
