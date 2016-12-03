@@ -8,6 +8,7 @@ import (
 
 type (
 	Identifier string
+	Version int
 
 	Event interface{}
 )
@@ -29,16 +30,16 @@ func EventIdentifier(e interface{}) Identifier {
 	return Identifier(t.String())
 }
 
-func EventVersion(e interface{}) int {
+func EventVersion(e interface{}) Version {
 	t := extractUnderlyingType(e)
 	f, ok := t.FieldByName("Event")
 	if (ok) {
 		i, err := strconv.Atoi(f.Tag.Get("v"))
 		if err == nil {
-			return i
+			return Version(i)
 		}
 	}
-	return 0
+	return Version(0)
 }
 
 type (
