@@ -114,7 +114,7 @@ func (s *SimpleEventBus)Publish(containers ...Container) {
 }
 
 func (s *SimpleEventBus)intercept(c Container) (Container, error) {
-	id := EventIdentifier(c)
+	id := EventIdentifier(c.Event)
 	var e error = nil
 	container := c
 	if _, prs := s.interceptors[id]; prs {

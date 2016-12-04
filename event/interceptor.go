@@ -3,7 +3,7 @@ package event
 type (
 	Interceptor struct {
 		Identifier
-		Intercept func(E Container) (Container, error)
+		Intercept func(c Container) (Container, error)
 	}
 
 	Interceptors []Interceptor

@@ -3,6 +3,7 @@ package event
 import (
 	"testing"
 	"time"
+	"fmt"
 )
 
 type (
@@ -62,5 +63,33 @@ func TestSimpleEventBus_UnSubscribe(t *testing.T) {
 
 	if len(eventBus.eventProcessors) != 0 {
 		t.Errorf("Expected number of even processors 0 while we have %v registered", len(eventBus.eventProcessors))
+	}
+}
+
+func TestSimpleEventBus_Register_MutateEvent(t *testing.T) {
+	eventBus := NewSimpleEventBus()
+	listener := eventBusListener{total:0, results: make(chan int)}
+	eventBus.Subscribe(NewBlockingProcessor(&routingContext, &listener))
+	eventBus.Register(Interceptor{
+		Identifier: Identifier("event.valueAddedEvent"),
+		Intercept: func(c Container) (Container, error) {
+			e := c.Event.(valueAddedEvent)
+			e.add = e.add + 1
+			c.Event = e
+			c.MetaData[seqKey] = 101
+			return c, nil
+		},
+	})
+
+	eventBus.Publish(Container{
+		Event: valueAddedEvent{add: 5},
+		MetaData : MetaData{
+			seqKey: uint64(1),
+		},
+	})
+
+	result := <- listener.results
+	if (result != 6) {
+		t.Errorf("The incorrect total has been passed down the event handler expect 5 received %v", result)
 	}
 }
