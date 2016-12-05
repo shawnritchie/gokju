@@ -3,7 +3,7 @@ package event
 import (
 	"testing"
 	"time"
-	"fmt"
+	"errors"
 )
 
 type (
@@ -92,4 +92,32 @@ func TestSimpleEventBus_Register_MutateEvent(t *testing.T) {
 	if (result != 6) {
 		t.Errorf("The incorrect total has been passed down the event handler expect 5 received %v", result)
 	}
+}
+
+
+func TestSimpleEventBus_Register_EventNotSupported(t *testing.T) {
+	eventBus := NewSimpleEventBus()
+	listener := eventBusListener{total:0, results: make(chan int)}
+	eventBus.Subscribe(NewBlockingProcessor(&routingContext, &listener))
+	eventBus.Register(Interceptor{
+		Identifier: Identifier("event.valueAddedEvent"),
+		Intercept: func(c Container) (Container, error) {
+			return Container{}, errors.New("Event Not Supported")
+		},
+	})
+
+	eventBus.Publish(Container{
+		Event: valueAddedEvent{add: 5},
+		MetaData : MetaData{
+			seqKey: uint64(1),
+		},
+	})
+
+	select {
+	case <-listener.results:
+		t.Errorf("Event handler should have never been invoked")
+	default:
+		t.Logf("Test succesfully passed")
+	}
+
 }
